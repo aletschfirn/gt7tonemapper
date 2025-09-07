@@ -28,6 +28,7 @@
 
 // -----------------------------------------------------------------------------
 // Mode options.
+// TODO: make them selectors in ReShade instead of this define thing.
 // -----------------------------------------------------------------------------
 #define TONE_MAPPING_UCS_ICTCP  0
 #define TONE_MAPPING_UCS_JZAZBZ 1
@@ -292,7 +293,8 @@ jzazbzToRgb(const float3 jab, float3 rgb) // Output: linear Rec.2020
 // -----------------------------------------------------------------------------
 // Unified color space (UCS): ICtCp or Jzazbz.
 // -----------------------------------------------------------------------------
-
+// TODO: change TONE_MAPPING_UCS_JZAZBZ and TONE_MAPPING_UCS_ICTCP to ReShade
+// selections. Maybe something like selector?
 #if TONE_MAPPING_UCS == TONE_MAPPING_UCS_ICTCP
 void
 rgbToUcs(const float3 rgb, float3 ucs)
@@ -428,18 +430,13 @@ struct GT7ToneMapping
     }
 };
 
-// -----------------------------------------------------------------------------
-// Below: Test harness for GT7ToneMapping
-// Includes test input data, utilities for printing results,
-// and main() entry point for SDR / HDR tone mapping evaluation.
-// -----------------------------------------------------------------------------
-
 float3 RGB;
 float3 RGBArray = RGB;
 
 void
 printRGB(const int label, int index, const float3 RGB)
 {
+    // TODO: remake into buffer printing.
     /*
     printf(
         "%-30s[%zu]: R = %10.3f, G = %10.3f, B = %10.3f\n", label, index, RGB[0], RGB[1], RGB[2]);
@@ -449,6 +446,7 @@ printRGB(const int label, int index, const float3 RGB)
 void
 printRGBPhysical(const uint label, int index, const float3 RGB)
 {
+    // TODO: remake into buffer printing.
     /*
     printf("%-30s[%zu]: R = %10.3f, G = %10.3f, B = %10.3f\n",
            label,
@@ -467,11 +465,11 @@ printToneMappingResult(GT7ToneMapping toneMapper, int index, float3 input)
 
     const float3 output = { outColor[0], outColor[1], outColor[2] };
 
+    // TODO: make "Input" and "Output" to be buffer? Might be what we need.
     printRGB("Input  (frame buffer)", index, input);
     printRGB("Output (frame buffer)", index, output);
     printRGBPhysical("Input  (physical [cd/m^2])", index, input);
     printRGBPhysical("Output (physical [cd/m^2])", index, output);
-    // printf("\n");
 }
 
 void applySDR()
@@ -499,14 +497,14 @@ void applyHDR(float f)
 void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
-    Image = tex2D(ReShade::BackBuffer, TexCoord);
+    ImageBuffer = tex2D(ReShade::BackBuffer, TexCoord);
     // TODO: separate functions for HDR and SDR based on define value...
     // Currently will be hardcoded for SDR
-    Image = applySDR();
+    ImageBuffer = applySDR();
 
 
 // -----------------------------------------------------------------------------
-// Below are original C++ examples for main fuctions.
+// Below are original C++ examples for main function.
 // They don't really work in HLSL, but they can be
 // ported to it's syntax and probably used for some
 // testing.
