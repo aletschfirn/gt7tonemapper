@@ -163,7 +163,6 @@ struct GT7ToneMapping
 
     float framebufferLuminanceTarget_;
     float framebufferLuminanceTargetUcs_; // Target luminance in UCS space
-    // GTToneMappingCurveV2 curve_;
     float peakIntensity_;
     float alpha_;
     float midPoint_;
@@ -330,7 +329,6 @@ iCtCpToRgb(const float3 ictCp, out float3 rgb) // Output: linear Rec.2020
 // range and wide gamut," Opt. Express 25, 15131-15151 (2017)
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
-// #define JZAZBZ_EXPONENT_SCALE_FACTOR 1.7f // Scale factor for exponent
 
 void
 rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
@@ -353,8 +351,7 @@ rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
 void
 jzazbzToRgb(const float3 jab, out float3 rgb) // Output: linear Rec.2020
 {
-    float jz = jab[0] + 0.000001;
-    // float jz = jab[0] + 1.6295499532821566e-11f;
+    float jz = jab[0] + 1.6295499532821566e-11f;
     float iz = jz / (0.44f + 0.56f * jz);
     float a  = jab[1];
     float b  = jab[2];
@@ -379,7 +376,7 @@ void rgbToUcs(const float3 rgb, out float3 ucs)
 {
     if (mapping == 0)
         rgbToICtCp(rgb, ucs);
-    else // mapping == 1
+    else
         rgbToJzazbz(rgb, ucs);
 }
 
@@ -387,7 +384,7 @@ void ucsToRgb(const float3 ucs, out float3 rgb)
 {
     if (mapping == 0)
         iCtCpToRgb(ucs, rgb);
-    else // mapping == 1
+    else
         jzazbzToRgb(ucs, rgb);
 }
 
@@ -400,11 +397,8 @@ void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetL
     initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
     // Default parameters.
     toneMapper.blendRatio_ = blendRatio;
-    // toneMapper.blendRatio_ = 0.6f;
     toneMapper.fadeStart_= fadeStart;
-    // toneMapper.fadeStart_  = 0.98f;
     toneMapper.fadeEnd_ = fadeEnd;
-    // toneMapper.fadeEnd_    = 1.16f;
     float3 ucs;
     float3 rgb = float3(toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_);
     rgbToUcs(rgb, ucs);
@@ -473,8 +467,6 @@ void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
     float3 inputColor = tex2D(ReShade::BackBuffer, TexCoord).rgb;
-    // TODO: separate functions for HDR and SDR based on define value...
-    // Currently will be hardcoded for SDR
     GT7ToneMapping toneMapper;
     if (dynamic_range == 0)
         initializeAsSDR(toneMapper);
@@ -485,26 +477,6 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     applyToneMapping(toneMapper, inputColor, outColor);
 
     Image = outColor * exposure;
-    // Image = float3(ucs_ictcp[0], ucs_jzazbz[0], 1.0f);
-
-
-// -----------------------------------------------------------------------------
-// Below are original C++ examples for main function.
-// They don't really work in HLSL, but they can be
-// ported to it's syntax and probably used for some
-// testing.
-// -----------------------------------------------------------------------------
-    // Run tone mapping test using SDR settings (standard dynamic range)
-    // testSDR();
-
-    // Run tone mapping test for HDR display with 1000 cd/m^2 peak luminance
-    // testHDR(1000.0f);
-
-    // Run tone mapping test for HDR display with 4000 cd/m^2 peak luminance
-    // testHDR(4000.0f);
-
-    // Run tone mapping test for HDR display with 10000 cd/m^2 peak luminance
-    // testHDR(10000.0f);
 }
 
 
