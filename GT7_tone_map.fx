@@ -28,14 +28,7 @@
 
 // -----------------------------------------------------------------------------
 // Mode options.
-// TODO: make them selectors in ReShade instead of this define thing.
 // -----------------------------------------------------------------------------
-/*
-#define TONE_MAPPING_UCS_ICTCP  0
-#define TONE_MAPPING_UCS_JZAZBZ 1
-#define TONE_MAPPING_UCS        TONE_MAPPING_UCS_ICTCP
-*/
-
 uniform int mapping <
     ui_category = "Mapping";
     ui_items = "ICTCP\0JZAZBZ\0";
@@ -329,7 +322,6 @@ iCtCpToRgb(const float3 ictCp, out float3 rgb) // Output: linear Rec.2020
 // range and wide gamut," Opt. Express 25, 15131-15151 (2017)
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
-
 void
 rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
 {
