@@ -497,11 +497,16 @@ void applyHDR(float f)
 void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
-    ImageBuffer = tex2D(ReShade::BackBuffer, TexCoord);
+    float inputColor = tex2D(ReShade::BackBuffer, TexCoord).rgb;
     // TODO: separate functions for HDR and SDR based on define value...
     // Currently will be hardcoded for SDR
-    ImageBuffer = applySDR();
+    GT7ToneMapping toneMapper;
+    toneMapper.initializeAsSDR();
 
+    float3 outColor;
+    toneMapper.applyToneMapping(inputColor, outColor);
+
+    Image = outColor;
 
 // -----------------------------------------------------------------------------
 // Below are original C++ examples for main function.
