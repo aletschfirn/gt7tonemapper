@@ -30,12 +30,23 @@
 // Mode options.
 // TODO: make them selectors in ReShade instead of this define thing.
 // -----------------------------------------------------------------------------
+/*
 #define TONE_MAPPING_UCS_ICTCP  0
 #define TONE_MAPPING_UCS_JZAZBZ 1
 #define TONE_MAPPING_UCS        TONE_MAPPING_UCS_ICTCP
+*/
 
-uniform float Exposure < 
+uniform int mapping <
+    ui_category = "Mapping";
+    ui_items = "ICTCP\0JZAZBZ\0";
+    ui_label = "Tone Mapping";
+    ui_tooltip = "";
+    ui_type = "combo";
+> = 0;
+
+uniform float exposure < 
     ui_type = "drag";
+    ui_label = "Exposure";
     ui_min = 0.1;
     ui_max = 10.0;
     ui_step = 0.01;
@@ -232,7 +243,7 @@ inverseEotfSt2084(float v, float exponentScaleFactor = 1.0f)
 // Reference: ITU-T T.302 (https://www.itu.int/rec/T-REC-T.302/en)
 // -----------------------------------------------------------------------------
 void
-rgbToICtCp(const float3 rgb, float3 ictCp) // Input: linear Rec.2020
+rgbToICtCp(const float3 rgb, out float3 ictCp) // Input: linear Rec.2020
 {
     float l = (rgb[0] * 1688.0f + rgb[1] * 2146.0f + rgb[2] * 262.0f) / 4096.0f;
     float m = (rgb[0] * 683.0f + rgb[1] * 2951.0f + rgb[2] * 462.0f) / 4096.0f;
@@ -248,7 +259,7 @@ rgbToICtCp(const float3 rgb, float3 ictCp) // Input: linear Rec.2020
 }
 
 void
-iCtCpToRgb(const float3 ictCp, float3 rgb) // Output: linear Rec.2020
+iCtCpToRgb(const float3 ictCp, out float3 rgb) // Output: linear Rec.2020
 {
     float l = ictCp[0] + 0.00860904f * ictCp[1] + 0.11103f * ictCp[2];
     float m = ictCp[0] - 0.00860904f * ictCp[1] - 0.11103f * ictCp[2];
@@ -274,7 +285,7 @@ iCtCpToRgb(const float3 ictCp, float3 rgb) // Output: linear Rec.2020
 #define JZAZBZ_EXPONENT_SCALE_FACTOR 1.7f // Scale factor for exponent
 
 void
-rgbToJzazbz(const float3 rgb, float3 jab) // Input: linear Rec.2020
+rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
 {
     float l = rgb[0] * 0.530004f + rgb[1] * 0.355704f + rgb[2] * 0.086090f;
     float m = rgb[0] * 0.289388f + rgb[1] * 0.525395f + rgb[2] * 0.157481f;
@@ -292,7 +303,7 @@ rgbToJzazbz(const float3 rgb, float3 jab) // Input: linear Rec.2020
 }
 
 void
-jzazbzToRgb(const float3 jab, float3 rgb) // Output: linear Rec.2020
+jzazbzToRgb(const float3 jab, out float3 rgb) // Output: linear Rec.2020
 {
     float jz = jab[0] + 1.6295499532821566e-11f;
     float iz = jz / (0.44f + 0.56f * jz);
@@ -315,44 +326,29 @@ jzazbzToRgb(const float3 jab, float3 rgb) // Output: linear Rec.2020
 // -----------------------------------------------------------------------------
 // Unified color space (UCS): ICtCp or Jzazbz.
 // -----------------------------------------------------------------------------
-// TODO: change TONE_MAPPING_UCS_JZAZBZ and TONE_MAPPING_UCS_ICTCP to ReShade
-// selections. Maybe something like selector?
-#if TONE_MAPPING_UCS == TONE_MAPPING_UCS_ICTCP
-void
-rgbToUcs(const float3 rgb, float3 ucs)
+void rgbToUcs(const float3 rgb, out float3 ucs)
 {
-    rgbToICtCp(rgb, ucs);
-}
-void
-ucsToRgb(const float3 ucs, float3 rgb)
-{
-    iCtCpToRgb(ucs, rgb);
+    if (mapping == 0)
+        rgbToICtCp(rgb, ucs);
+    else // mapping == 1
+        rgbToJzazbz(rgb, ucs);
 }
 
-#elif TONE_MAPPING_UCS == TONE_MAPPING_UCS_JZAZBZ
-void
-rgbToUcs(const float3 rgb, float3 ucs)
+void ucsToRgb(const float3 ucs, out float3 rgb)
 {
-    rgbToJzazbz(rgb, ucs);
+    if (mapping == 0)
+        iCtCpToRgb(ucs, rgb);
+    else // mapping == 1
+        jzazbzToRgb(ucs, rgb);
 }
-void
-ucsToRgb(const float3 ucs, float3 rgb)
-{
-    jzazbzToRgb(ucs, rgb);
-}
-#else
-#error "Unsupported TONE_MAPPING_UCS value. Please define TONE_MAPPING_UCS as either TONE_MAPPING_UCS_ICTCP or TONE_MAPPING_UCS_JZAZBZ."
-#endif
 
 // Initializes the tone mapping curve and related parameters based on the target display luminance.
 // This method should not be called directly. Use initializeAsHDR() orinitializeAsSDR() instead.
 void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetLuminance)
 {
-    GTToneMappingCurveV2 curve_;
     toneMapper.framebufferLuminanceTarget_ = physicalValueToFrameBufferValue(physicalTargetLuminance);
     // Initialize the curve (slightly different parameters from GT Sport).
-    // initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
-    initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.6f, 1.0f);
+    initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
     // Default parameters.
     toneMapper.blendRatio_ = 0.6f;
     toneMapper.fadeStart_  = 0.98f;
@@ -360,8 +356,7 @@ void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetL
     float3 ucs;
     float3 rgb = float3(toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_);
     rgbToUcs(rgb, ucs);
-    toneMapper.framebufferLuminanceTargetUcs_ =
-        ucs[0]; // Use the first UCS component (I or Jz) as luminance
+    toneMapper.framebufferLuminanceTargetUcs_ = ucs[0]; // Use the first UCS component (I or Jz) as luminance
 }
 
 // Initialize for HDR (High Dynamic Range) display.
@@ -422,80 +417,6 @@ void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, out flo
     }
 }
 
-/*
-float3 RGB;
-float3 RGBArray = RGB;
-
-void
-printRGB(const int label, int index, const float3 RGB)
-{
-    // TODO: remake into buffer printing.
-    /*
-    printf(
-        "%-30s[%zu]: R = %10.3f, G = %10.3f, B = %10.3f\n", label, index, RGB[0], RGB[1], RGB[2]);
-    */
-
-/*    
-}
-
-void
-printRGBPhysical(const uint label, int index, const float3 RGB)
-{
-    // TODO: remake into buffer printing.
-    /*
-    printf("%-30s[%zu]: R = %10.3f, G = %10.3f, B = %10.3f\n",
-           label,
-           index,
-           frameBufferValueToPhysicalValue(RGB[0]),
-           frameBufferValueToPhysicalValue(RGB[1]),
-           frameBufferValueToPhysicalValue(RGB[2]));
-    */
-
-/*
-}
-*/
-
-/*
-void
-printToneMappingResult(GT7ToneMapping toneMapper, int index, float3 input)
-{
-    float3 outColor;
-    applyToneMapping(toneMapper, input, outColor);
-
-    const float3 output = { outColor[0], outColor[1], outColor[2] };
-
-    // TODO: make "Input" and "Output" to be buffer? Might be what we need.
-    printRGB("Input  (frame buffer)", index, input);
-    printRGB("Output (frame buffer)", index, output);
-    printRGBPhysical("Input  (physical [cd/m^2])", index, input);
-    printRGBPhysical("Output (physical [cd/m^2])", index, output);
-}
-*/
-
-void applySDR()
-{
-    GT7ToneMapping toneMapper;
-    // toneMapper.initializeAsSDR();
-
-    // TODO: "printing" tone mapping results to buffer.
-    // It should be something like this:
-    //
-    // for (int i = 0; i < inputs.size(); ++i)
-    // {
-    //     printToneMappingResult(toneMapper, i, inputs[i]);
-    // }
-}
-
-/*
-void applyHDR(float f)
-{
-    GT7ToneMapping toneMapper;
-    // toneMapper.initializeAsHDR(f);
-
-    // TODO: "printing" to buffer
-}
-*/
-
 void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
@@ -503,12 +424,17 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     // TODO: separate functions for HDR and SDR based on define value...
     // Currently will be hardcoded for SDR
     GT7ToneMapping toneMapper;
-    initializeAsSDR(toneMapper);
+    if (mapping == 0)
+        initializeAsSDR(toneMapper);
+    else
+        initializeAsHDR(toneMapper, 1000.0f); // 1000 cd/m^2 value
 
     float3 outColor;
     applyToneMapping(toneMapper, inputColor, outColor);
 
-    Image = outColor * Exposure;
+    Image = outColor * exposure;
+    // Image = float3(ucs_ictcp[0], ucs_jzazbz[0], 1.0f);
+
 
 // -----------------------------------------------------------------------------
 // Below are original C++ examples for main function.
