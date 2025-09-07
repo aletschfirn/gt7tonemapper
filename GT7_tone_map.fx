@@ -337,7 +337,7 @@ struct GT7ToneMapping
         framebufferLuminanceTarget_ = physicalValueToFrameBufferValue(physicalTargetLuminance);
 
         // Initialize the curve (slightly different parameters from GT Sport).
-        curve_.initializeCurve(framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
+        initializeCurve(curve_, framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
 
         // Default parameters.
         blendRatio_ = 0.6f;
@@ -393,9 +393,9 @@ struct GT7ToneMapping
         rgbToUcs(rgb, ucs);
 
         // Per-channel tone mapping ("skewed" color).
-        float3 skewedRgb = { curve_.evaluateCurve(rgb[0]),
-                               curve_.evaluateCurve(rgb[1]),
-                               curve_.evaluateCurve(rgb[2]) };
+        float3 skewedRgb = { evaluateCurve(curve_, rgb[0]),
+                               evaluateCurve(curve_, rgb[1]),
+                               evaluateCurve(curve_, rgb[2]) };
 
         float3 skewedUcs;
         rgbToUcs(skewedRgb, skewedUcs);
