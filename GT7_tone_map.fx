@@ -34,6 +34,13 @@
 #define TONE_MAPPING_UCS_JZAZBZ 1
 #define TONE_MAPPING_UCS        TONE_MAPPING_UCS_ICTCP
 
+uniform float Exposure < 
+    ui_type = "drag";
+    ui_min = 0.1;
+    ui_max = 10.0;
+    ui_step = 0.01;
+    > = 1.0;
+
 // -----------------------------------------------------------------------------
 // Defines the SDR reference white level used in our tone mapping (typically 250 nits).
 // -----------------------------------------------------------------------------
@@ -390,7 +397,7 @@ void initializeAsSDR(inout GT7ToneMapping toneMapper)
 //         - in HDR mode: mapped to [0, framebufferLuminanceTarget_], readyfor PQ inverse-EOTF
 // Note: framebufferLuminanceTarget_ represents the display's target peakluminance converted to a frame buffer value.
 //       The returned values are suitable for applying the appropriate OETFto generate final output signal.
-void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, float3 outColor)
+void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, out float3 outColor)
 {
     // Convert to UCS to separate luminance and chroma.
     float3 ucs;
@@ -501,74 +508,7 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     float3 outColor;
     applyToneMapping(toneMapper, inputColor, outColor);
 
-    // Debuging curve using skewedRgb manual evaluating
-    
-    float3 skewedRgb = float3(evaluateCurve(toneMapper, inputColor[0]), evaluateCurve(toneMapper, inputColor[1]), evaluateCurve(toneMapper, inputColor[2]));
-    Image = skewedRgb;
-    
-
-    // Debuging blending
-    float3 ucs;
-    rgbToUcs(inputColor, ucs);
-
-    float3 skewedUcs;
-    rgbToUcs(skewedRgb, skewedUcs);
-
-    float chromaScale = chromaCurve(
-        ucs[0] / toneMapper.framebufferLuminanceTargetUcs_,
-        toneMapper.fadeStart_,
-        toneMapper.fadeEnd_
-    );
-
-    float3 scaledUcs = float3(
-        ucs[0],
-        ucs[1] * chromaScale,
-        ucs[2] * chromaScale
-    );
-
-    float3 scaledRgb;
-    ucsToRgb(scaledUcs, scaledRgb);
-
-    Image = scaledRgb;
-
-    
-    
-    float3 blended;
-    for (int i = 0; i < 3; ++i)
-    {
-        blended[i] = (1.0f - toneMapper.blendRatio_) * skewedRgb[i] + toneMapper.   blendRatio_ * scaledRgb[i];
-    }
-    Image = blended;
-    
-
-    /*
-    Image = float3(toneMapper.sdrCorrectionFactor_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTargetUcs_);
-    */
-
-    float3 debugOut;
-    for (int u = 0; u < 3; ++u)
-    {
-        debugOut[u] = min(blended[u], toneMapper.framebufferLuminanceTarget_);
-    }
-    Image = debugOut;
-
-    Image = blended * toneMapper.sdrCorrectionFactor_;
-
-    /*
-    for (int e = 0; e < 3; ++e)
-    {
-        outColor[e] = blended[e];
-    }
-    Image = outColor;
-    */
-
-    for (int e = 0; e < 3; ++e)
-    {
-        outColor[e] = clamp(blended[e], 0.0f, 1.0f);
-    }
-    Image = outColor;
-
-    // Image = outColor;
+    Image = outColor * Exposure;
 
 // -----------------------------------------------------------------------------
 // Below are original C++ examples for main function.
