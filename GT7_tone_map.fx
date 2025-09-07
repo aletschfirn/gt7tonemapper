@@ -60,6 +60,46 @@ uniform float exposure <
     ui_step = 0.01;
     > = 1.0;
 
+uniform float blendRatio < 
+    ui_type = "drag";
+    ui_label = "Blend Ratio";
+    ui_min = 0.1;
+    ui_max = 1.0;
+    ui_step = 0.01;
+    > = 0.6;
+
+uniform float fadeStart < 
+    ui_type = "drag";
+    ui_label = "Fade Start";
+    ui_min = 0.1;
+    ui_max = 2.0;
+    ui_step = 0.01;
+    > = 0.98;
+
+uniform float fadeEnd < 
+    ui_type = "drag";
+    ui_label = "Fade End";
+    ui_min = 0.1;
+    ui_max = 2.0;
+    ui_step = 0.01;
+    > = 1.16;
+
+uniform float hdr_luminance < 
+    ui_type = "drag";
+    ui_label = "HDR Luminance";
+    ui_min = 250;
+    ui_max = 10000.0;
+    ui_step = 1;
+    > = 1000;
+
+uniform float JZAZBZ_EXPONENT_SCALE_FACTOR <
+    ui_type = "drag";
+    ui_label = "JZAZBZ Exponent";
+    ui_min = 0.1;
+    ui_max = 10;
+    ui_step = 0.1;
+    > = 1.7;
+
 // -----------------------------------------------------------------------------
 // Defines the SDR reference white level used in our tone mapping (typically 250 nits).
 // -----------------------------------------------------------------------------
@@ -290,7 +330,7 @@ iCtCpToRgb(const float3 ictCp, out float3 rgb) // Output: linear Rec.2020
 // range and wide gamut," Opt. Express 25, 15131-15151 (2017)
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
-#define JZAZBZ_EXPONENT_SCALE_FACTOR 1.7f // Scale factor for exponent
+// #define JZAZBZ_EXPONENT_SCALE_FACTOR 1.7f // Scale factor for exponent
 
 void
 rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
@@ -313,14 +353,15 @@ rgbToJzazbz(const float3 rgb, out float3 jab) // Input: linear Rec.2020
 void
 jzazbzToRgb(const float3 jab, out float3 rgb) // Output: linear Rec.2020
 {
-    float jz = jab[0] + 1.6295499532821566e-11f;
+    float jz = jab[0] + 0.000001;
+    // float jz = jab[0] + 1.6295499532821566e-11f;
     float iz = jz / (0.44f + 0.56f * jz);
     float a  = jab[1];
     float b  = jab[2];
 
-    float l = iz + a * 1.386050432715393e-1f + b * 5.804731615611869e-2f;
-    float m = iz + a * -1.386050432715393e-1f + b * -5.804731615611869e-2f;
-    float s = iz + a * -9.601924202631895e-2f + b * -8.118918960560390e-1f;
+    float l = iz + a * 0.1386050432715393 + b * 0.05804731615611869;
+    float m = iz + a * -0.1386050432715393 + b * -0.05804731615611869;
+    float s = iz + a * -0.09601924202631895 + b * -0.8118918960560390;
 
     float lLin = eotfSt2084(l, JZAZBZ_EXPONENT_SCALE_FACTOR);
     float mLin = eotfSt2084(m, JZAZBZ_EXPONENT_SCALE_FACTOR);
@@ -358,9 +399,12 @@ void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetL
     // Initialize the curve (slightly different parameters from GT Sport).
     initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
     // Default parameters.
-    toneMapper.blendRatio_ = 0.6f;
-    toneMapper.fadeStart_  = 0.98f;
-    toneMapper.fadeEnd_    = 1.16f;
+    toneMapper.blendRatio_ = blendRatio;
+    // toneMapper.blendRatio_ = 0.6f;
+    toneMapper.fadeStart_= fadeStart;
+    // toneMapper.fadeStart_  = 0.98f;
+    toneMapper.fadeEnd_ = fadeEnd;
+    // toneMapper.fadeEnd_    = 1.16f;
     float3 ucs;
     float3 rgb = float3(toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_);
     rgbToUcs(rgb, ucs);
@@ -435,7 +479,7 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     if (dynamic_range == 0)
         initializeAsSDR(toneMapper);
     else
-        initializeAsHDR(toneMapper, 1000.0f); // 1000 cd/m^2 value
+        initializeAsHDR(toneMapper, hdr_luminance);
 
     float3 outColor;
     applyToneMapping(toneMapper, inputColor, outColor);
