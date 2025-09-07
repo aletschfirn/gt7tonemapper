@@ -344,13 +344,14 @@ void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetL
     GTToneMappingCurveV2 curve_;
     toneMapper.framebufferLuminanceTarget_ = physicalValueToFrameBufferValue(physicalTargetLuminance);
     // Initialize the curve (slightly different parameters from GT Sport).
-    initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
+    // initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
+    initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.6f, 1.0f);
     // Default parameters.
     toneMapper.blendRatio_ = 0.6f;
     toneMapper.fadeStart_  = 0.98f;
     toneMapper.fadeEnd_    = 1.16f;
     float3 ucs;
-    float3 rgb = { toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_ };
+    float3 rgb = float3(toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTarget_);
     rgbToUcs(rgb, ucs);
     toneMapper.framebufferLuminanceTargetUcs_ =
         ucs[0]; // Use the first UCS component (I or Jz) as luminance
@@ -395,14 +396,12 @@ void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, float3 
     float3 ucs;
     rgbToUcs(rgb, ucs);
     // Per-channel tone mapping ("skewed" color).
-    float3 skewedRgb = { evaluateCurve(toneMapper, rgb[0]), evaluateCurve(toneMapper, rgb[1]), evaluateCurve(toneMapper, rgb[2]) };
+    float3 skewedRgb = float3(evaluateCurve(toneMapper, rgb[0]), evaluateCurve(toneMapper, rgb[1]), evaluateCurve(toneMapper, rgb[2]));
     float3 skewedUcs;
     rgbToUcs(skewedRgb, skewedUcs);
     float chromaScale =
         chromaCurve(ucs[0] / toneMapper.framebufferLuminanceTargetUcs_, toneMapper.fadeStart_, toneMapper.fadeEnd_);
-    const float3 scaledUcs = { skewedUcs[0],         // Luminance fromskewed color
-                                 ucs[1] * chromaScale, // Scaled chromacomponents
-                                 ucs[2] * chromaScale };
+    const float3 scaledUcs = float3(ucs[0], ucs[1] * chromaScale, ucs[2] * chromaScale );
     // Convert back to RGB.
     float3 scaledRgb;
     ucsToRgb(scaledUcs, scaledRgb);
@@ -416,6 +415,7 @@ void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, float3 
     }
 }
 
+/*
 float3 RGB;
 float3 RGBArray = RGB;
 
@@ -427,6 +427,8 @@ printRGB(const int label, int index, const float3 RGB)
     printf(
         "%-30s[%zu]: R = %10.3f, G = %10.3f, B = %10.3f\n", label, index, RGB[0], RGB[1], RGB[2]);
     */
+
+/*    
 }
 
 void
@@ -441,8 +443,12 @@ printRGBPhysical(const uint label, int index, const float3 RGB)
            frameBufferValueToPhysicalValue(RGB[1]),
            frameBufferValueToPhysicalValue(RGB[2]));
     */
-}
 
+/*
+}
+*/
+
+/*
 void
 printToneMappingResult(GT7ToneMapping toneMapper, int index, float3 input)
 {
@@ -457,6 +463,7 @@ printToneMappingResult(GT7ToneMapping toneMapper, int index, float3 input)
     printRGBPhysical("Input  (physical [cd/m^2])", index, input);
     printRGBPhysical("Output (physical [cd/m^2])", index, output);
 }
+*/
 
 void applySDR()
 {
@@ -472,6 +479,7 @@ void applySDR()
     // }
 }
 
+/*
 void applyHDR(float f)
 {
     GT7ToneMapping toneMapper;
@@ -479,11 +487,12 @@ void applyHDR(float f)
 
     // TODO: "printing" to buffer
 }
+*/
 
 void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
-    float inputColor = tex2D(ReShade::BackBuffer, TexCoord).rgb;
+    float3 inputColor = tex2D(ReShade::BackBuffer, TexCoord).rgb;
     // TODO: separate functions for HDR and SDR based on define value...
     // Currently will be hardcoded for SDR
     GT7ToneMapping toneMapper;
@@ -492,7 +501,74 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     float3 outColor;
     applyToneMapping(toneMapper, inputColor, outColor);
 
+    // Debuging curve using skewedRgb manual evaluating
+    
+    float3 skewedRgb = float3(evaluateCurve(toneMapper, inputColor[0]), evaluateCurve(toneMapper, inputColor[1]), evaluateCurve(toneMapper, inputColor[2]));
+    Image = skewedRgb;
+    
+
+    // Debuging blending
+    float3 ucs;
+    rgbToUcs(inputColor, ucs);
+
+    float3 skewedUcs;
+    rgbToUcs(skewedRgb, skewedUcs);
+
+    float chromaScale = chromaCurve(
+        ucs[0] / toneMapper.framebufferLuminanceTargetUcs_,
+        toneMapper.fadeStart_,
+        toneMapper.fadeEnd_
+    );
+
+    float3 scaledUcs = float3(
+        ucs[0],
+        ucs[1] * chromaScale,
+        ucs[2] * chromaScale
+    );
+
+    float3 scaledRgb;
+    ucsToRgb(scaledUcs, scaledRgb);
+
+    Image = scaledRgb;
+
+    
+    
+    float3 blended;
+    for (int i = 0; i < 3; ++i)
+    {
+        blended[i] = (1.0f - toneMapper.blendRatio_) * skewedRgb[i] + toneMapper.   blendRatio_ * scaledRgb[i];
+    }
+    Image = blended;
+    
+
+    /*
+    Image = float3(toneMapper.sdrCorrectionFactor_, toneMapper.framebufferLuminanceTarget_, toneMapper.framebufferLuminanceTargetUcs_);
+    */
+
+    float3 debugOut;
+    for (int u = 0; u < 3; ++u)
+    {
+        debugOut[u] = min(blended[u], toneMapper.framebufferLuminanceTarget_);
+    }
+    Image = debugOut;
+
+    Image = blended * toneMapper.sdrCorrectionFactor_;
+
+    /*
+    for (int e = 0; e < 3; ++e)
+    {
+        outColor[e] = blended[e];
+    }
     Image = outColor;
+    */
+
+    for (int e = 0; e < 3; ++e)
+    {
+        outColor[e] = clamp(blended[e], 0.0f, 1.0f);
+    }
+    Image = outColor;
+
+    // Image = outColor;
 
 // -----------------------------------------------------------------------------
 // Below are original C++ examples for main function.
