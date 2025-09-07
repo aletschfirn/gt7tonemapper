@@ -99,50 +99,42 @@ struct GTToneMappingCurveV2
     float linearSection_;
     float toeStrength_;
     float kA_, kB_, kC_;
-
-    void initializeCurve(float monitorIntensity,
-                         float alpha,
-                         float grayPoint,
-                         float linearSection,
-                         float toeStrength)
-    {
-        peakIntensity_ = monitorIntensity;
-        alpha_         = alpha;
-        midPoint_      = grayPoint;
-        linearSection_ = linearSection;
-        toeStrength_   = toeStrength;
-
-        // Pre-compute constants for the shoulder region.
-        float k = (linearSection_ - 1.0f) / (alpha_ - 1.0f);
-        kA_     = peakIntensity_ * linearSection_ + peakIntensity_ * k;
-        kB_     = -peakIntensity_ * k * exp(linearSection_ / k);
-        kC_     = -1.0f / (k * peakIntensity_);
-    }
-
-    float evaluateCurve (float x)
-    {
-        if (x < 0.0f)
-        {
-            return 0.0f;
-        };
-
-        float weightLinear = smoothStep(x, 0.0f, midPoint_);
-        float weightToe    = 1.0f - weightLinear;
-
-        // Shoulder mapping for highlights.
-        float shoulder = kA_ + kB_ * exp(x * kC_);
-
-        if (x < linearSection_ * peakIntensity_)
-        {
-            float toeMapped = midPoint_ * pow(x / midPoint_, toeStrength_);
-            return weightToe * toeMapped + weightLinear * x;
-        }
-        else
-        {
-            return shoulder;
-        }
-    }
 };
+
+void initializeCurve(inout GTToneMappingCurveV2 curve, float monitorIntensity, float alpha, float grayPoint, float linearSection, float toeStrength)
+{
+    curve.peakIntensity_ = monitorIntensity;
+    curve.alpha_ = alpha;
+    curve.midPoint_ = grayPoint;
+    curve.linearSection_ = linearSection;
+    curve.toeStrength_ = toeStrength;
+    // Pre-compute constants for the shoulder region.
+    float k = (curve.linearSection_ - 1.0f) / (curve.alpha_ - 1.0f);
+    curve.kA_     = curve.peakIntensity_ * curve.linearSection_ + curve.peakIntensity_ * k;
+    curve.kB_     = -curve.peakIntensity_ * k * exp(curve.linearSection_  / k);
+    curve.kC_     = -1.0f / (k * curve.peakIntensity_);
+}
+
+float evaluateCurve (inout GTToneMappingCurveV2 curve, float x)
+{
+    if (x < 0.0f)
+    {
+        return 0.0f;
+    };
+    float weightLinear = smoothStep(x, 0.0f, curve.midPoint_);
+    float weightToe    = 1.0f - weightLinear;
+    // Shoulder mapping for highlights.
+    float shoulder = curve.kA_ + curve.kB_ * exp(x * curve.kC_);
+    if (x < curve.linearSection_ * curve.peakIntensity_)
+    {
+        float toeMapped = curve.midPoint_ * pow(x / curve.midPoint_, curve.toeStrength_);
+        return weightToe * toeMapped + weightLinear * x;
+    }
+    else
+    {
+        return shoulder;
+    }
+}
 
 // -----------------------------------------------------------------------------
 // EOTF / inverse-EOTF for ST-2084 (PQ).
