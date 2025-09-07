@@ -89,6 +89,29 @@ chromaCurve(float x, float a, float b)
 }
 
 // -----------------------------------------------------------------------------
+// GT7 Tone Mapping class.
+// -----------------------------------------------------------------------------
+struct GT7ToneMapping
+{
+    float sdrCorrectionFactor_;
+
+    float framebufferLuminanceTarget_;
+    float framebufferLuminanceTargetUcs_; // Target luminance in UCS space
+    // GTToneMappingCurveV2 curve_;
+    float peakIntensity_;
+    float alpha_;
+    float midPoint_;
+    float linearSection_;
+    float toeStrength_;
+    float kA_, kB_, kC_;
+
+    float blendRatio_;
+    float fadeStart_;
+    float fadeEnd_;
+
+};
+
+// -----------------------------------------------------------------------------
 // "GT Tone Mapping" curve with convergent shoulder.
 // -----------------------------------------------------------------------------
 struct GTToneMappingCurveV2
@@ -101,33 +124,33 @@ struct GTToneMappingCurveV2
     float kA_, kB_, kC_;
 };
 
-void initializeCurve(inout GTToneMappingCurveV2 curve, float monitorIntensity, float alpha, float grayPoint, float linearSection, float toeStrength)
+void initializeCurve(inout GT7ToneMapping toneMapper, float monitorIntensity, float alpha, float grayPoint, float linearSection, float toeStrength)
 {
-    curve.peakIntensity_ = monitorIntensity;
-    curve.alpha_ = alpha;
-    curve.midPoint_ = grayPoint;
-    curve.linearSection_ = linearSection;
-    curve.toeStrength_ = toeStrength;
+    toneMapper.peakIntensity_ = monitorIntensity;
+    toneMapper.alpha_ = alpha;
+    toneMapper.midPoint_ = grayPoint;
+    toneMapper.linearSection_ = linearSection;
+    toneMapper.toeStrength_ = toeStrength;
     // Pre-compute constants for the shoulder region.
-    float k = (curve.linearSection_ - 1.0f) / (curve.alpha_ - 1.0f);
-    curve.kA_     = curve.peakIntensity_ * curve.linearSection_ + curve.peakIntensity_ * k;
-    curve.kB_     = -curve.peakIntensity_ * k * exp(curve.linearSection_  / k);
-    curve.kC_     = -1.0f / (k * curve.peakIntensity_);
+    float k = (toneMapper.linearSection_ - 1.0f) / (toneMapper.alpha_ - 1.0f);
+    toneMapper.kA_     = toneMapper.peakIntensity_ * toneMapper.linearSection_ + toneMapper.peakIntensity_ * k;
+    toneMapper.kB_     = -toneMapper.peakIntensity_ * k * exp(toneMapper.linearSection_  / k);
+    toneMapper.kC_     = -1.0f / (k * toneMapper.peakIntensity_);
 }
 
-float evaluateCurve (inout GTToneMappingCurveV2 curve, float x)
+float evaluateCurve (in GT7ToneMapping toneMapper, float x)
 {
     if (x < 0.0f)
     {
         return 0.0f;
     };
-    float weightLinear = smoothStep(x, 0.0f, curve.midPoint_);
+    float weightLinear = smoothStep(x, 0.0f, toneMapper.midPoint_);
     float weightToe    = 1.0f - weightLinear;
     // Shoulder mapping for highlights.
-    float shoulder = curve.kA_ + curve.kB_ * exp(x * curve.kC_);
-    if (x < curve.linearSection_ * curve.peakIntensity_)
+    float shoulder = toneMapper.kA_ + toneMapper.kB_ * exp(x * toneMapper.kC_);
+    if (x < toneMapper.linearSection_ * toneMapper.peakIntensity_)
     {
-        float toeMapped = curve.midPoint_ * pow(x / curve.midPoint_, curve.toeStrength_);
+        float toeMapped = toneMapper.midPoint_ * pow(x / toneMapper.midPoint_, toneMapper.toeStrength_);
         return weightToe * toeMapped + weightLinear * x;
     }
     else
@@ -314,32 +337,14 @@ ucsToRgb(const float3 ucs, float3 rgb)
 #error "Unsupported TONE_MAPPING_UCS value. Please define TONE_MAPPING_UCS as either TONE_MAPPING_UCS_ICTCP or TONE_MAPPING_UCS_JZAZBZ."
 #endif
 
-
-// -----------------------------------------------------------------------------
-// GT7 Tone Mapping class.
-// -----------------------------------------------------------------------------
-struct GT7ToneMapping
-{
-    float sdrCorrectionFactor_;
-
-    float framebufferLuminanceTarget_;
-    float framebufferLuminanceTargetUcs_; // Target luminance in UCS space
-    GTToneMappingCurveV2 curve_;
-
-    float blendRatio_;
-    float fadeStart_;
-    float fadeEnd_;
-
-};
-
 // Initializes the tone mapping curve and related parameters based on the target display luminance.
 // This method should not be called directly. Use initializeAsHDR() orinitializeAsSDR() instead.
 void initializeParameters(inout GT7ToneMapping toneMapper, float physicalTargetLuminance)
 {
     GTToneMappingCurveV2 curve_;
-    toneMapper.framebufferLuminanceTarget_ = physicalValueToFrameBufferValu(physicalTargetLuminance);
+    toneMapper.framebufferLuminanceTarget_ = physicalValueToFrameBufferValue(physicalTargetLuminance);
     // Initialize the curve (slightly different parameters from GT Sport).
-    initializeCurve(curve_, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0444f, 1.280f);
+    initializeCurve(toneMapper, toneMapper.framebufferLuminanceTarget_, 0.25f, 0.538f, 0.444f, 1.280f);
     // Default parameters.
     toneMapper.blendRatio_ = 0.6f;
     toneMapper.fadeStart_  = 0.98f;
@@ -390,9 +395,7 @@ void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, float3 
     float3 ucs;
     rgbToUcs(rgb, ucs);
     // Per-channel tone mapping ("skewed" color).
-    float3 skewedRgb = { evaluateCurve(toneMapper.curve_, rgb[0]),
-                           evaluateCurve(toneMapper.curve_, rgb[1]),
-                           evaluateCurve(toneMapper.curve_, rgb[2]) };
+    float3 skewedRgb = { evaluateCurve(toneMapper, rgb[0]), evaluateCurve(toneMapper, rgb[1]), evaluateCurve(toneMapper, rgb[2]) };
     float3 skewedUcs;
     rgbToUcs(skewedRgb, skewedUcs);
     float chromaScale =
@@ -444,7 +447,7 @@ void
 printToneMappingResult(GT7ToneMapping toneMapper, int index, float3 input)
 {
     float3 outColor;
-    toneMapper.applyToneMapping(input, outColor);
+    applyToneMapping(toneMapper, input, outColor);
 
     const float3 output = { outColor[0], outColor[1], outColor[2] };
 
