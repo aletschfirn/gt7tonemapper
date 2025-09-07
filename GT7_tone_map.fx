@@ -44,6 +44,14 @@ uniform int mapping <
     ui_type = "combo";
 > = 0;
 
+uniform int dynamic_range <
+    ui_category = "Mapping";
+    ui_items = "SDR\0HDR\0";
+    ui_label = "Dynamic Range signal... HDR one uses 1000 cd/m^2 peak luminance";
+    ui_tooltip = "";
+    ui_type = "combo";
+> = 0;
+
 uniform float exposure < 
     ui_type = "drag";
     ui_label = "Exposure";
@@ -424,7 +432,7 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     // TODO: separate functions for HDR and SDR based on define value...
     // Currently will be hardcoded for SDR
     GT7ToneMapping toneMapper;
-    if (mapping == 0)
+    if (dynamic_range == 0)
         initializeAsSDR(toneMapper);
     else
         initializeAsHDR(toneMapper, 1000.0f); // 1000 cd/m^2 value
