@@ -455,6 +455,10 @@ void applyToneMapping(inout GT7ToneMapping toneMapper, const float3 rgb, out flo
     }
 }
 
+// -----------------------------------------------------------------------------
+// Main function for shader. Init's tonemapper, apply's tonemapping, and renders
+// buffer back
+// -----------------------------------------------------------------------------
 void
 PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image : SV_Target)
 {
@@ -463,6 +467,11 @@ PS_Main(float4 vpos : SV_Position, float2 TexCoord : TEXCOORD, out float3 Image 
     if (dynamic_range == 0)
         initializeAsSDR(toneMapper);
     else
+        // Regarding HDR output:
+        // You can output it on SDR display and it'll be something as if
+        // it was exposure 2.30 initialized as SDR...
+        //
+        // Also not sure if this actually works on HDR
         initializeAsHDR(toneMapper, hdr_luminance);
 
     float3 outColor;
